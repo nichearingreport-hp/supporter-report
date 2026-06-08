@@ -4183,6 +4183,36 @@
       const disp = document.getElementById(displayMap[key]);
       if (disp) disp.textContent = formatNumDisplay(total);
     });
+    // v1.0.0 Phase 4: サポーター用25項目の月内累計も更新
+    updateSupMonthly();
+  }
+
+  // v1.0.0 Phase 4: サポーター用 客数報告25項目の月内累計を更新
+  // 現状は前日引継ぎなしのため、本日入力値をそのまま月内累計表示に反映
+  // （将来、GAS getPreviousData がサポーター対応すれば supMonthlyBase + 本日 にする）
+  function updateSupMonthly() {
+    const supPairs = [
+      "shinki-taiou", "shinki-pass", "shinki-shodan",
+      "koegake-taiou", "koegake-pass", "koegake-shodan",
+      "jasho-kakuho", "jasho-pass", "jasho-shodan",
+      "toiawase-kakuho", "toiawase-pass", "toiawase-shodan",
+      "kokyaku-taiou", "kokyaku-pass", "kokyaku-shodan",
+      "zsonota-kakuho", "zsonota-pass", "zsonota-shodan",
+      "pr-katsudou", "ja-suishin", "shuchikai", "tan-sonota",
+      "keiyaku-kensu", "keiyaku-daisu", "keiyaku-kingaku"
+    ];
+    supPairs.forEach(suffix => {
+      const todayEl = document.getElementById(`perf-${suffix}`);
+      const monthEl = document.getElementById(`perf-month-${suffix}`);
+      if (!todayEl || !monthEl) return;
+      const todayVal = parseInt(todayEl.value) || 0;
+      // 金額系は3桁区切り表示
+      if (suffix === "keiyaku-kingaku") {
+        monthEl.textContent = todayVal.toLocaleString();
+      } else {
+        monthEl.textContent = String(todayVal);
+      }
+    });
   }
 
   function updateAllCounts() {
@@ -6429,6 +6459,26 @@
     showResetWarningIfNeeded();
     // v1.0.0: メモを同日のみ復元（前日以前はクリア）
     loadMemoIfToday();
+    // v1.0.0 Phase 4: サポーター用25項目のinputに月内累計自動更新を設定
+    const supSuffixes = [
+      "shinki-taiou", "shinki-pass", "shinki-shodan",
+      "koegake-taiou", "koegake-pass", "koegake-shodan",
+      "jasho-kakuho", "jasho-pass", "jasho-shodan",
+      "toiawase-kakuho", "toiawase-pass", "toiawase-shodan",
+      "kokyaku-taiou", "kokyaku-pass", "kokyaku-shodan",
+      "zsonota-kakuho", "zsonota-pass", "zsonota-shodan",
+      "pr-katsudou", "ja-suishin", "shuchikai", "tan-sonota",
+      "keiyaku-kensu", "keiyaku-daisu", "keiyaku-kingaku"
+    ];
+    supSuffixes.forEach(suffix => {
+      const el = document.getElementById(`perf-${suffix}`);
+      if (el) {
+        el.addEventListener("input", updateSupMonthly);
+        el.addEventListener("change", updateSupMonthly);
+      }
+    });
+    // 初回表示
+    updateSupMonthly();
   });
 
   // v1.0.0: 第2引数 type="warning" で目立つ赤色警告
