@@ -284,6 +284,23 @@
     font-weight: 700;
     font-size: 11px !important;
   }
+  /* v1.0.0 Phase 2C+: アーカイブクリアボタン */
+  .archive-clear-btn {
+    margin-left: 8px;
+    padding: 2px 10px;
+    background: #FFF;
+    color: #1E7B47;
+    border: 1px solid #1E7B47;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .archive-clear-btn:hover {
+    background: #1E7B47;
+    color: #FFF;
+  }
   /* v1.0.0 Phase 2C: 戦略報告のヒント（緑系・少し目立つ） */
   .strategy-notice-tip {
     background: rgba(46, 157, 92, 0.12);
@@ -2989,7 +3006,10 @@
         </div>
         <div class="strategy-summary-row strategy-archive-row" id="strategy-archive-row" style="display:none;">
           <span class="strategy-summary-label">📦 アーカイブ</span>
-          <span class="strategy-summary-value"><span id="strategy-archive-count">0</span> 件（Excel出力時に含まれます）</span>
+          <span class="strategy-summary-value">
+            <span id="strategy-archive-count">0</span> 件（Excel出力時に含まれます）
+            <button type="button" class="archive-clear-btn" onclick="clearExcelArchive()">クリア</button>
+          </span>
         </div>
         <div class="strategy-summary-row">
           <span class="strategy-summary-label">アポ件数</span>
@@ -5921,6 +5941,19 @@
     const archive = loadExcelArchive();
     archive.push(cardData);
     saveExcelArchive(archive);
+  }
+
+  // v1.0.0 Phase 2C+: アーカイブを手動でクリア（古い不完全データを削除する用）
+  function clearExcelArchive() {
+    const archive = loadExcelArchive();
+    if (archive.length === 0) {
+      showToast("📦 アーカイブはすでに空です");
+      return;
+    }
+    if (!confirm(`📦 アーカイブされた ${archive.length}件 をすべて削除します。\nExcel出力からも消えます🌸\n\n本当に削除しますか？`)) return;
+    localStorage.removeItem(EXCEL_ARCHIVE_KEY);
+    if (typeof updateStrategyTotals === "function") updateStrategyTotals();
+    showToast(`📦 アーカイブ${archive.length}件を削除しました`);
   }
 
   // カードからデータをオブジェクトとして収集
