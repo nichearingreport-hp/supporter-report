@@ -2804,7 +2804,7 @@
             </div>
             <div class="perf-item perf-money-item">
               <label>金額（円）</label>
-              <input type="text" id="perf-keiyaku-kingaku" value="0" inputmode="numeric" class="perf-money-input" placeholder="0">
+              <input type="text" id="perf-keiyaku-kingaku" value="" inputmode="numeric" class="perf-money-input" placeholder="0" oninput="formatNumberInput(this); updateSupMonthly();">
               <div class="month-display">月内 <span class="num" id="perf-month-keiyaku-kingaku">0</span> 円</div>
             </div>
           </div>
@@ -3518,6 +3518,14 @@
     today: {}
   };
 
+  // v1.0.0: ローカルタイムゾーンで日付を「YYYY-MM-DD」形式で取得（UTC変換を回避）
+  function getLocalDateString(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
   function updateDate() {
     const now = new Date();
     const y = now.getFullYear();
@@ -3526,14 +3534,15 @@
     const dow = ["日","月","火","水","木","金","土"][now.getDay()];
     document.getElementById("dateDisplay").textContent = `現在時刻：${y}年${m}月${d}日(${dow}) ${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
 
-    const today = now.toISOString().split("T")[0];
+    // v1.0.0: ローカルタイムゾーンで当日の日付を設定（toISOStringはUTC変換するため使わない）
+    const today = getLocalDateString(now);
     document.getElementById("reportDate").value = today;
 
     const next = new Date(now);
     next.setDate(next.getDate() + 1);
     if (next.getDay() === 0) next.setDate(next.getDate() + 1);
     if (next.getDay() === 6) next.setDate(next.getDate() + 2);
-    document.getElementById("nextDate").value = next.toISOString().split("T")[0];
+    document.getElementById("nextDate").value = getLocalDateString(next);
     updateNextWeekday();
   }
   updateDate();
@@ -4205,7 +4214,8 @@
       const todayEl = document.getElementById(`perf-${suffix}`);
       const monthEl = document.getElementById(`perf-month-${suffix}`);
       if (!todayEl || !monthEl) return;
-      const todayVal = parseInt(todayEl.value) || 0;
+      // カンマ付き表記（1,163,000など）もパース可能にする
+      const todayVal = parseInt(String(todayEl.value || "0").replace(/[^\d-]/g, "")) || 0;
       // 金額系は3桁区切り表示
       if (suffix === "keiyaku-kingaku") {
         monthEl.textContent = todayVal.toLocaleString();
@@ -5007,7 +5017,8 @@
     // ===========================================
     // v1.0.0 Phase 3: サポーター用 メール本文ビルダー
     // ===========================================
-    const pv = (id) => parseInt(document.getElementById(id)?.value) || 0;
+    // カンマ付き表記（1,163,000など）もパース可能にする
+    const pv = (id) => parseInt(String(document.getElementById(id)?.value || "0").replace(/[^\d-]/g, "")) || 0;
     const tv = (id) => (document.getElementById(id)?.textContent || "0").replace(/[^\d-]/g, "");
     const tn = (id) => parseInt(tv(id)) || 0;
 
@@ -5016,6 +5027,13 @@
       const t = tn(totalId);
       const d = pv(todayId);
       return `${t}(${d})`;
+    };
+
+    // 金額専用：3桁区切りカンマ付きで「累計(本日)」形式
+    const mtMoney = (totalId, todayId) => {
+      const t = tn(totalId);
+      const d = pv(todayId);
+      return `${t.toLocaleString()}(${d.toLocaleString()})`;
     };
 
     // ヘッダー
@@ -5053,7 +5071,7 @@
     report += "\n";
     report += "《サポ契約》\n";
     // 契約台数は "daisu"（uなし）
-    report += `　件数：${mt("perf-month-keiyaku-kensu","perf-keiyaku-kensu")}　台数：${mt("perf-month-keiyaku-daisu","perf-keiyaku-daisu")}　金額：${mt("perf-month-keiyaku-kingaku","perf-keiyaku-kingaku")}円\n`;
+    report += `　件数：${mt("perf-month-keiyaku-kensu","perf-keiyaku-kensu")}　台数：${mt("perf-month-keiyaku-daisu","perf-keiyaku-daisu")}　金額：${mtMoney("perf-month-keiyaku-kingaku","perf-keiyaku-kingaku")}円\n`;
     report += "\n";
 
     // ============== 今月の相談会 ==============
@@ -5379,11 +5397,10 @@
     const area = document.getElementById("areaSelect").value || "";
 
     // v1.0.0 Phase 4: サポーター用 客数報告データ（A-AA列にマッピング）
-    const intId = (id) => parseInt(document.getElementById(id)?.value) || 0;
-    const intText = (id) => {
-      const t = document.getElementById(id)?.textContent || "0";
-      return parseInt(t.replace(/[^\d-]/g, "")) || 0;
-    };
+    // カンマ付き表記（1,163,000など）もパース可能にする
+    const cleanNum = (s) => parseInt(String(s || "0").replace(/[^\d-]/g, "")) || 0;
+    const intId = (id) => cleanNum(document.getElementById(id)?.value);
+    const intText = (id) => cleanNum(document.getElementById(id)?.textContent);
     const supCount = {
       shinkiTaiou:    intId("perf-shinki-taiou"),
       shinkiPass:     intId("perf-shinki-pass"),
