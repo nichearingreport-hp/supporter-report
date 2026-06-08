@@ -5304,28 +5304,28 @@
     const stock = Array.from(document.querySelectorAll("#stock-list input"))
       .map(i => i.value.trim()).filter(t => t.length > 0);
 
-    // 現在の売上
+    // 現在の売上（サポーター用アプリでは要素なし → 0で埋める）
     const sales = {
-      prevCarry: parseInt(document.getElementById("sales-prev-carry").value) || 0,
-      thisJA: parseInt(document.getElementById("sales-this-ja").value) || 0,
-      thisSeikyo: parseInt(document.getElementById("sales-this-seikyo").value) || 0,
-      nextMonth: parseInt(document.getElementById("sales-next-month").value) || 0
+      prevCarry: parseInt(document.getElementById("sales-prev-carry")?.value) || 0,
+      thisJA: parseInt(document.getElementById("sales-this-ja")?.value) || 0,
+      thisSeikyo: parseInt(document.getElementById("sales-this-seikyo")?.value) || 0,
+      nextMonth: parseInt(document.getElementById("sales-next-month")?.value) || 0
     };
 
-    // 実績件数（当日分）
+    // 実績件数（当日分）（サポーター用アプリでは要素なし → 0で埋める）
     const perf = {
-      kyakuTotal: parseInt(document.getElementById("perf-kyaku-total").value) || 0,
-      kyakuNew: parseInt(document.getElementById("perf-kyaku-new").value) || 0,
-      shodanTotal: parseInt(document.getElementById("perf-shodan-total").value) || 0,
-      shodanNew: parseInt(document.getElementById("perf-shodan-new").value) || 0,
-      shichoTotal: parseInt(document.getElementById("perf-shicho-total").value) || 0,
-      shichoNew: parseInt(document.getElementById("perf-shicho-new").value) || 0,
-      keiyakuTotal: parseInt(document.getElementById("perf-keiyaku-total").value) || 0,
-      keiyakuNew: parseInt(document.getElementById("perf-keiyaku-new").value) || 0,
-      canTotal: parseInt(document.getElementById("perf-can-total").value) || 0,
-      canNew: parseInt(document.getElementById("perf-can-new").value) || 0,
-      nohinTotal: parseInt(document.getElementById("perf-nohin-total").value) || 0,
-      nohinNew: parseInt(document.getElementById("perf-nohin-new").value) || 0
+      kyakuTotal: parseInt(document.getElementById("perf-kyaku-total")?.value) || 0,
+      kyakuNew: parseInt(document.getElementById("perf-kyaku-new")?.value) || 0,
+      shodanTotal: parseInt(document.getElementById("perf-shodan-total")?.value) || 0,
+      shodanNew: parseInt(document.getElementById("perf-shodan-new")?.value) || 0,
+      shichoTotal: parseInt(document.getElementById("perf-shicho-total")?.value) || 0,
+      shichoNew: parseInt(document.getElementById("perf-shicho-new")?.value) || 0,
+      keiyakuTotal: parseInt(document.getElementById("perf-keiyaku-total")?.value) || 0,
+      keiyakuNew: parseInt(document.getElementById("perf-keiyaku-new")?.value) || 0,
+      canTotal: parseInt(document.getElementById("perf-can-total")?.value) || 0,
+      canNew: parseInt(document.getElementById("perf-can-new")?.value) || 0,
+      nohinTotal: parseInt(document.getElementById("perf-nohin-total")?.value) || 0,
+      nohinNew: parseInt(document.getElementById("perf-nohin-new")?.value) || 0
     };
 
     // 月内累計（ベース＋当日分）：客数・商談・試聴・契約・契約CAN・納品の6項目
