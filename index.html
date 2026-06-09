@@ -6632,6 +6632,7 @@
     const cards = document.querySelectorAll("#strategy-list .strategy-card");
     return Array.from(cards).map((card, idx) => ({
       idx: idx + 1,
+      eventDate: card.querySelector(".strategy-event-date")?.value || "",
       ja: card.querySelector(".strategy-ja")?.value || "",
       branch: card.querySelector(".strategy-branch")?.value || "",
       customer: card.querySelector(".strategy-customer")?.value || "",
