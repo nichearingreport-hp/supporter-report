@@ -4756,7 +4756,9 @@
     showLoading(userName + " さんのデータを読込中...");
     try {
       const division = (document.getElementById("divisionSelect") || {}).value || "";
-      const result = await gasGet({ action: "getUserData", user: userName, division: division });
+      // v1.0.0 Phase 4: サポーター用アプリは appType=supporter を付与して
+      //                 GASに「報告データ_サポーター」シートから取得を要求
+      const result = await gasGet({ action: "getUserData", user: userName, division: division, appType: "supporter" });
       if (result && result.success) {
         applyPreviousData(result.previousData);
         applyUserInfo(result.userInfo);
@@ -4778,6 +4780,75 @@
       resetAllInputs();
       return;
     }
+    // v1.0.0 Phase 4: サポーター用データの復元（supMonthly / meet / strategyCards / strategyArchive）
+    // ヒアリング/GM事業部用のpath（counts / sales等）と同時に動作してもOK（互いに干渉しない）
+    try {
+      // 月内累計（同月のみ復元、月跨ぎは0）
+      if (prev.supMonthly) {
+        if (prev.sameMonth) {
+          Object.keys(supMonthlyBase).forEach(k => {
+            supMonthlyBase[k] = Number(prev.supMonthly[k]) || 0;
+          });
+        } else {
+          Object.keys(supMonthlyBase).forEach(k => supMonthlyBase[k] = 0);
+        }
+        // localStorageにも反映（保険として）
+        try {
+          localStorage.setItem(SUP_MONTHLY_BASE_KEY, JSON.stringify({
+            month: currentMonthKey(),
+            data: supMonthlyBase,
+            savedAt: new Date().toISOString()
+          }));
+        } catch (e) {}
+        if (typeof updateSupMonthly === "function") updateSupMonthly();
+      }
+      // 今月の相談会（同月のみ復元）
+      if (prev.meet && prev.sameMonth) {
+        let restoredCount = 0;
+        // 既存ブロックをクリアしてから復元（重複防止）
+        const meetContainer = document.getElementById("meet-pref-blocks");
+        if (meetContainer) meetContainer.innerHTML = "";
+        const seikyoList = document.getElementById("meet-seikyo-list");
+        if (seikyoList) seikyoList.innerHTML = "";
+
+        (prev.meet.prefs || []).forEach(pb => {
+          if (pb.pref && Array.isArray(pb.items) && pb.items.length > 0) {
+            addPrefBlock("meet", pb.pref, pb.items);
+            restoredCount += pb.items.length;
+          }
+        });
+        (prev.meet.seikyo || []).forEach(it => {
+          if (seikyoList) {
+            seikyoList.appendChild(createMeetItem(it, true));
+            restoredCount++;
+          }
+        });
+        if (restoredCount > 0) {
+          setTimeout(() => {
+            if (typeof showToast === "function") showToast(`📋 今月の相談会を復元（${restoredCount}件）`);
+          }, 600);
+        }
+      }
+      // 戦略カード（月跨ぎでも復元、月跨ぎ判定は updateStrategyTotals が「契約日が当月」のものだけ集計）
+      if (prev.strategyCards && Array.isArray(prev.strategyCards) && prev.strategyCards.length > 0) {
+        // 既存カードをクリアしてから復元
+        const strategyList = document.getElementById("strategy-list");
+        if (strategyList) strategyList.innerHTML = "";
+        prev.strategyCards.forEach(d => addStrategyItem(d));
+        if (typeof updateStrategyTotals === "function") updateStrategyTotals();
+      }
+      // アーカイブ（Excelエクスポート用）
+      if (prev.strategyArchive && Array.isArray(prev.strategyArchive) && prev.strategyArchive.length > 0) {
+        try {
+          localStorage.setItem(EXCEL_ARCHIVE_KEY, JSON.stringify(prev.strategyArchive));
+          if (typeof updateStrategyTotals === "function") updateStrategyTotals();
+        } catch (e) {}
+      }
+    } catch (e) {
+      console.warn("[サポーター前日データ復元] エラー:", e);
+    }
+
+    // 以下、ヒアリング/GM事業部用のpath（既存）
     // 数値カウント
     const counts = prev.counts || {};
     document.querySelectorAll("input[data-key]").forEach(input => {
