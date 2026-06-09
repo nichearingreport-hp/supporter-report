@@ -4624,20 +4624,29 @@
   function loadMeetDataIfCurrentMonth() {
     try {
       const json = localStorage.getItem(MEET_DATA_KEY);
-      if (!json) return;
+      if (!json) {
+        console.log("[今月の相談会] localStorage に保存データなし");
+        return;
+      }
       const saved = JSON.parse(json);
-      if (!saved || !saved.data) return;
+      if (!saved || !saved.data) {
+        console.log("[今月の相談会] 保存データの形式エラー");
+        return;
+      }
       // 月跨ぎ → クリア
       if (saved.month !== currentMonthKey()) {
         localStorage.removeItem(MEET_DATA_KEY);
+        console.log(`[今月の相談会] 月跨ぎでクリア（${saved.month} → ${currentMonthKey()}）`);
         return;
       }
       // 同月 → 復元
       const meet = saved.data;
+      let restoredCount = 0;
       if (meet.prefs && Array.isArray(meet.prefs)) {
         meet.prefs.forEach(p => {
           if (p.pref && Array.isArray(p.items) && p.items.length > 0) {
             addPrefBlock("meet", p.pref, p.items);
+            restoredCount += p.items.length;
           }
         });
       }
@@ -4648,10 +4657,20 @@
             const itemEl = createMeetItem(it, true);
             seikyoList.appendChild(itemEl);
           });
+          restoredCount += meet.seikyo.length;
         }
       }
       if (typeof renumberAll === "function") renumberAll();
       if (typeof updateAllCounts === "function") updateAllCounts();
+      console.log(`[今月の相談会] 復元完了：${restoredCount}件`);
+      // ユーザーへのトースト通知（復元成功の見える化）
+      if (restoredCount > 0) {
+        setTimeout(() => {
+          if (typeof showToast === "function") {
+            showToast(`📋 今月の相談会を復元（${restoredCount}件）`);
+          }
+        }, 800);
+      }
     } catch (e) {
       console.warn("[今月の相談会] 復元エラー:", e);
     }
