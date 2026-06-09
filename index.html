@@ -595,20 +595,25 @@
    *   - その下の span に「6/9」を表示
    *   - カレンダーアイコンも表示
    */
+  /* v1.0.0 Phase 4: カスタム日付表示「6/9」
+   * 仕組み：
+   *   - span.date-display をブロック表示で確実に表示
+   *   - input type="date" を absolute opacity:0 で全体にかぶせる（タップでカレンダー）
+   *   - 未入力時：span は :empty で「📅 タップ」表示
+   *   - 入力済み時：span に「6/9」表示（updateDateDisplayで設定）
+   */
   .date-wrapper {
     position: relative;
     width: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 4px;
+    display: block;
     border: 1.5px solid #D0D0D0;
     border-radius: 5px;
-    padding: 5px 8px;
+    padding: 7px 10px;
     background: var(--white);
-    min-height: 32px;
+    min-height: 34px;
     box-sizing: border-box;
     cursor: pointer;
+    text-align: left;
   }
   .date-wrapper:focus-within {
     outline: 2px solid var(--navy);
@@ -628,37 +633,27 @@
     margin: 0 !important;
     background: transparent !important;
     z-index: 2;
-    /* iOS Safari でも確実にカレンダー起動するように */
     -webkit-appearance: none;
     appearance: none;
   }
-  /* カスタム表示：6/9 など */
+  /* カスタム表示：6/9 などをブロック表示 */
   .date-wrapper .date-display {
+    display: block;
     font-size: 14px;
     color: #333;
     font-weight: 600;
     pointer-events: none;
+    position: relative;
     z-index: 1;
-    flex: 1;
-    text-align: left;
     line-height: 1.2;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    min-height: 18px;
   }
+  /* 未入力時：「📅 タップ」と表示 */
   .date-wrapper .date-display:empty::before {
-    content: "未設定";
-    color: #aaa;
-    font-weight: 400;
-    font-size: 11px;
-  }
-  /* カレンダーアイコン（横） */
-  .date-wrapper::after {
-    content: "📅";
-    font-size: 16px;
-    z-index: 1;
-    pointer-events: none;
-    line-height: 1;
+    content: "📅 タップ";
+    color: var(--fuchsia);
+    font-weight: 700;
+    font-size: 12px;
   }
   .strategy-delete-btn {
     width: 100%;
@@ -5956,6 +5951,13 @@
         } catch (e) {
           console.warn("[送信後リセット] エラー:", e);
         }
+        // v1.0.0 Phase 4: 送信成功時に「今月の相談会」と戦略カードを保存
+        try {
+          if (typeof saveMeetData === "function") saveMeetData();
+          if (typeof saveStrategyCards === "function") saveStrategyCards();
+        } catch (e) {
+          console.warn("[送信後保存] エラー:", e);
+        }
         const status = result.mailStatus;
         if (status === "ok") {
           showToast(`✓ ${result.mailCount}件の宛先に送信しました`);
@@ -6100,10 +6102,9 @@
         <div class="strategy-row-4col">
           <div class="strategy-field">
             <label>開催日</label>
-            <div class="calendar-hint">タップで選択</div>
             <div class="date-wrapper">
-              <input type="date" class="strategy-event-date" onchange="updateStrategyCardSummary(this); updateDateDisplay(this);">
               <span class="date-display"></span>
+              <input type="date" class="strategy-event-date" onchange="updateStrategyCardSummary(this); updateDateDisplay(this); updateStrategyTotals();" oninput="updateDateDisplay(this);">
             </div>
           </div>
           <div class="strategy-field">
@@ -6140,10 +6141,9 @@
             </div>
             <div class="strategy-field">
               <label>APO日</label>
-              <div class="calendar-hint">タップで選択</div>
               <div class="date-wrapper">
-                <input type="date" class="strategy-apo" onchange="updateStrategyCardSummary(this); updateStrategyTotals(); updateDateDisplay(this);">
                 <span class="date-display"></span>
+                <input type="date" class="strategy-apo" onchange="updateStrategyCardSummary(this); updateStrategyTotals(); updateDateDisplay(this);" oninput="updateDateDisplay(this);">
               </div>
             </div>
           </div>
@@ -6158,10 +6158,9 @@
           <div class="strategy-row-3col has-date-first">
             <div class="strategy-field">
               <label>契約日</label>
-              <div class="calendar-hint">タップで選択</div>
               <div class="date-wrapper">
-                <input type="date" class="strategy-contract-date" onchange="updateStrategyTotals(); updateDateDisplay(this);">
                 <span class="date-display"></span>
+                <input type="date" class="strategy-contract-date" onchange="updateStrategyTotals(); updateDateDisplay(this);" oninput="updateDateDisplay(this);">
               </div>
             </div>
             <div class="strategy-field">
