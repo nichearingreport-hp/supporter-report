@@ -499,9 +499,9 @@
   input[type="date"]::-webkit-calendar-picker-indicator:hover {
     transform: scale(1.15);
   }
-  /* v1.0.0: カレンダーアイコンの上の注意書き */
+  /* v1.0.0: カレンダーアイコンの上の注意書き（短くシンプルに） */
   .calendar-hint {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
     color: var(--fuchsia);
     text-align: right;
@@ -509,10 +509,11 @@
     margin-top: 2px;
     line-height: 1.2;
     padding-right: 2px;
-    letter-spacing: 0.02em;
+    letter-spacing: 0;
     display: block;
     white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
+    text-overflow: clip;
   }
   .calendar-hint::before {
     content: "📅 ";
@@ -588,42 +589,76 @@
     }
   }
 
-  /* v1.0.0 Phase 4: カスタム日付表示「6/9」 */
+  /* v1.0.0 Phase 4: カスタム日付表示「6/9」
+   * 仕組み：
+   *   - input type="date" を透明にして全体に被せる（タップでカレンダー起動）
+   *   - その下の span に「6/9」を表示
+   *   - カレンダーアイコンも表示
+   */
   .date-wrapper {
     position: relative;
     width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    border: 1.5px solid #D0D0D0;
+    border-radius: 5px;
+    padding: 5px 8px;
+    background: var(--white);
+    min-height: 32px;
+    box-sizing: border-box;
+    cursor: pointer;
   }
-  /* input type=date のテキスト部分を透明化（カレンダーアイコンは残す） */
+  .date-wrapper:focus-within {
+    outline: 2px solid var(--navy);
+    outline-offset: 1px;
+    border-color: var(--navy);
+  }
+  /* input本体：完全透明・全体にかぶせる（タップ受付） */
   .date-wrapper input[type="date"] {
-    color: transparent !important;
-    -webkit-text-fill-color: transparent !important;
-    caret-color: transparent;
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    opacity: 0 !important;
+    cursor: pointer !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    z-index: 2;
+    /* iOS Safari でも確実にカレンダー起動するように */
+    -webkit-appearance: none;
+    appearance: none;
   }
-  .date-wrapper input[type="date"]::-webkit-datetime-edit {
-    color: transparent !important;
-    -webkit-text-fill-color: transparent !important;
-  }
-  .date-wrapper input[type="date"]::-webkit-datetime-edit-fields-wrapper {
-    color: transparent;
-  }
-  /* カスタム表示「6/9」を input の上に重ねる */
+  /* カスタム表示：6/9 など */
   .date-wrapper .date-display {
-    position: absolute;
-    left: 9px;
-    top: 50%;
-    transform: translateY(-50%);
     font-size: 14px;
     color: #333;
     font-weight: 600;
     pointer-events: none;
     z-index: 1;
+    flex: 1;
+    text-align: left;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
   .date-wrapper .date-display:empty::before {
     content: "未設定";
     color: #aaa;
     font-weight: 400;
-    font-size: 12px;
+    font-size: 11px;
+  }
+  /* カレンダーアイコン（横） */
+  .date-wrapper::after {
+    content: "📅";
+    font-size: 16px;
+    z-index: 1;
+    pointer-events: none;
+    line-height: 1;
   }
   .strategy-delete-btn {
     width: 100%;
@@ -4379,7 +4414,6 @@
     const todayCount = Array.from(document.querySelectorAll(".today-sub-item textarea"))
       .filter(t => t.value.trim().length > 0).length;
     document.getElementById("badge-today").textContent = todayCount;
-
     // 月間累計：自動計算（カテゴリ別内訳付き）
     const calcArea = (area) => {
       let total = 0, shinki = 0, repeat = 0, other = 0;
@@ -4541,6 +4575,91 @@
     const stockCount = Array.from(document.querySelectorAll("#stock-list input"))
       .filter(i => i.value.trim().length > 0).length;
     document.getElementById("badge-stock").textContent = stockCount;
+    // v1.0.0 Phase 4: 「今月の相談会」を localStorage に自動保存（次回起動時に復元）
+    if (typeof saveMeetData === "function") saveMeetData();
+  }
+
+  // v1.0.0 Phase 4: 「今月の相談会」永続化（月内引継ぎ・月跨ぎリセット）
+  const MEET_DATA_KEY = "sup_meet_data";
+
+  function collectMeetDataOnly() {
+    const meet = { prefs: [], seikyo: [] };
+    document.querySelectorAll("#meet-pref-blocks .list-area").forEach(block => {
+      const prefSelect = block.querySelector(".pref-select");
+      if (!prefSelect) return;
+      const pref = prefSelect.value;
+      const items = Array.from(block.querySelectorAll(".pref-list .meet-item"))
+        .map(item => ({
+          date: item.querySelector(".meet-date")?.value?.trim() || "",
+          venue: item.querySelector(".meet-venue")?.value?.trim() || "",
+          venueType: (item.querySelector(".meet-venue-type") || {}).value || "",
+          shinki: parseInt(item.querySelector(".meet-num.shinki")?.value) || 0,
+          koukyaku: parseInt(item.querySelector(".meet-num.koukyaku")?.value) || 0,
+          pass: parseInt(item.querySelector(".meet-num.pass")?.value) || 0
+        }));
+      // 空白項目もそのまま保存（編集中の状態を保持）
+      if (items.length > 0) meet.prefs.push({ pref, items });
+    });
+    Array.from(document.querySelectorAll("#meet-seikyo-list > .meet-item")).forEach(item => {
+      meet.seikyo.push({
+        date: item.querySelector(".meet-date")?.value?.trim() || "",
+        venue: item.querySelector(".meet-venue")?.value?.trim() || "",
+        venueType: (item.querySelector(".meet-venue-type") || {}).value || "",
+        shinki: parseInt(item.querySelector(".meet-num.shinki")?.value) || 0,
+        koukyaku: parseInt(item.querySelector(".meet-num.koukyaku")?.value) || 0,
+        pass: parseInt(item.querySelector(".meet-num.pass")?.value) || 0
+      });
+    });
+    return meet;
+  }
+
+  function saveMeetData() {
+    try {
+      const meet = collectMeetDataOnly();
+      localStorage.setItem(MEET_DATA_KEY, JSON.stringify({
+        month: currentMonthKey(),
+        data: meet,
+        savedAt: new Date().toISOString()
+      }));
+    } catch (e) {
+      console.warn("[今月の相談会] 保存エラー:", e);
+    }
+  }
+
+  function loadMeetDataIfCurrentMonth() {
+    try {
+      const json = localStorage.getItem(MEET_DATA_KEY);
+      if (!json) return;
+      const saved = JSON.parse(json);
+      if (!saved || !saved.data) return;
+      // 月跨ぎ → クリア
+      if (saved.month !== currentMonthKey()) {
+        localStorage.removeItem(MEET_DATA_KEY);
+        return;
+      }
+      // 同月 → 復元
+      const meet = saved.data;
+      if (meet.prefs && Array.isArray(meet.prefs)) {
+        meet.prefs.forEach(p => {
+          if (p.pref && Array.isArray(p.items) && p.items.length > 0) {
+            addPrefBlock("meet", p.pref, p.items);
+          }
+        });
+      }
+      if (meet.seikyo && Array.isArray(meet.seikyo) && meet.seikyo.length > 0) {
+        const seikyoList = document.getElementById("meet-seikyo-list");
+        if (seikyoList) {
+          meet.seikyo.forEach(it => {
+            const itemEl = createMeetItem(it, true);
+            seikyoList.appendChild(itemEl);
+          });
+        }
+      }
+      if (typeof renumberAll === "function") renumberAll();
+      if (typeof updateAllCounts === "function") updateAllCounts();
+    } catch (e) {
+      console.warn("[今月の相談会] 復元エラー:", e);
+    }
   }
 
   // 県別ブロックを横断してプルダウン値ごとの件数を集計
@@ -5281,14 +5400,12 @@
     // ============== サポーター戦略報告 ==============
     report += "■ サポーター戦略報告\n";
     report += "─────────────────────────\n";
-    const targetMonth = document.getElementById("strategy-month")?.textContent || "—";
     const listCount = parseInt(document.getElementById("strategy-list-count")?.textContent) || 0;
     const apoTotal = parseInt(document.getElementById("strategy-apo-total")?.textContent) || 0;
     const contractTotal = parseInt(document.getElementById("strategy-contract-total")?.textContent) || 0;
     const unitsTotal = parseInt(document.getElementById("strategy-units-total")?.textContent) || 0;
     const amountTotal = (document.getElementById("strategy-amount-total")?.textContent || "0");
-    report += `対象月：${targetMonth}\n`;
-    report += `記載：${listCount}件　アポ：${apoTotal}アポ　契約：${contractTotal}契約　台数：${unitsTotal}台　金額：${amountTotal}円\n`;
+    report += `記載：${listCount}件　アポ（今月）：${apoTotal}アポ　契約（今月）：${contractTotal}契約　台数（今月）：${unitsTotal}台　金額（今月）：${amountTotal}円\n`;
     report += "\n";
 
     // 各カード（戦略リスト）
@@ -5983,7 +6100,7 @@
         <div class="strategy-row-4col">
           <div class="strategy-field">
             <label>開催日</label>
-            <div class="calendar-hint">カレンダーで選択</div>
+            <div class="calendar-hint">タップで選択</div>
             <div class="date-wrapper">
               <input type="date" class="strategy-event-date" onchange="updateStrategyCardSummary(this); updateDateDisplay(this);">
               <span class="date-display"></span>
@@ -6023,7 +6140,7 @@
             </div>
             <div class="strategy-field">
               <label>APO日</label>
-              <div class="calendar-hint">カレンダーで選択</div>
+              <div class="calendar-hint">タップで選択</div>
               <div class="date-wrapper">
                 <input type="date" class="strategy-apo" onchange="updateStrategyCardSummary(this); updateStrategyTotals(); updateDateDisplay(this);">
                 <span class="date-display"></span>
@@ -6041,7 +6158,7 @@
           <div class="strategy-row-3col has-date-first">
             <div class="strategy-field">
               <label>契約日</label>
-              <div class="calendar-hint">カレンダーで選択</div>
+              <div class="calendar-hint">タップで選択</div>
               <div class="date-wrapper">
                 <input type="date" class="strategy-contract-date" onchange="updateStrategyTotals(); updateDateDisplay(this);">
                 <span class="date-display"></span>
@@ -6761,6 +6878,8 @@
     loadStrategyCards();
     // v1.0.0 Phase 4: 客数報告の月内累計を復元
     loadSupMonthlyBaseIfCurrentMonth();
+    // v1.0.0 Phase 4: 「今月の相談会」を localStorage から復元（月跨ぎ時はクリア）
+    loadMeetDataIfCurrentMonth();
     // v1.0.0 Phase 4: サポーター用25項目のinputに月内累計自動更新を設定
     const supSuffixes = [
       "shinki-taiou", "shinki-pass", "shinki-shodan",
