@@ -2160,9 +2160,13 @@
     font-family: inherit;
     font-size: 13px;
     min-width: 120px;
+    min-height: 36px;
     resize: none;
     overflow: hidden;
     line-height: 1.4;
+    box-sizing: border-box;
+    display: block;
+    vertical-align: middle;
   }
   .meet-item .meet-num-group {
     display: flex;
@@ -4040,10 +4044,15 @@
     if (venueTextarea) {
       const autoResize = () => {
         venueTextarea.style.height = "auto";
-        venueTextarea.style.height = venueTextarea.scrollHeight + "px";
+        // scrollHeight と min-height の大きい方を採用
+        const scrollH = venueTextarea.scrollHeight;
+        const minH = 36;
+        venueTextarea.style.height = Math.max(scrollH, minH) + "px";
       };
       venueTextarea.addEventListener("input", autoResize);
+      // 初回実行（DOM追加後にも確実に動作するよう、複数タイミングで実行）
       setTimeout(autoResize, 0);
+      setTimeout(autoResize, 100);
     }
     div.querySelectorAll("input, textarea").forEach(inp => {
       inp.addEventListener("input", () => {
