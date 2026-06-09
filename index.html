@@ -564,18 +564,18 @@
   }
   .strategy-row-4col {
     display: grid;
-    /* 1列目（開催日）を狭めに、他3列は均等 */
-    grid-template-columns: minmax(135px, 0.65fr) 1fr 1fr 1fr;
+    /* 1列目（開催日）を更に狭く（カスタム表示で6/9にしたため幅100pxでも十分） */
+    grid-template-columns: 100px 1fr 1fr 1fr;
     gap: 12px 14px;
     margin-bottom: 10px;
   }
   /* サポ内容用3col：日付は3列目（APO日） */
   .strategy-row-3col.has-date-last {
-    grid-template-columns: 1fr 1fr minmax(135px, 0.65fr);
+    grid-template-columns: 1fr 1fr 100px;
   }
   /* サポ結果用3col：日付は1列目（契約日） */
   .strategy-row-3col.has-date-first {
-    grid-template-columns: minmax(135px, 0.65fr) 1fr 1fr;
+    grid-template-columns: 100px 1fr 1fr;
   }
   @media (max-width: 600px) {
     .strategy-row-4col {
@@ -586,6 +586,44 @@
     .strategy-row-3col.has-date-last {
       grid-template-columns: 1fr;
     }
+  }
+
+  /* v1.0.0 Phase 4: カスタム日付表示「6/9」 */
+  .date-wrapper {
+    position: relative;
+    width: 100%;
+  }
+  /* input type=date のテキスト部分を透明化（カレンダーアイコンは残す） */
+  .date-wrapper input[type="date"] {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    caret-color: transparent;
+  }
+  .date-wrapper input[type="date"]::-webkit-datetime-edit {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+  .date-wrapper input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+    color: transparent;
+  }
+  /* カスタム表示「6/9」を input の上に重ねる */
+  .date-wrapper .date-display {
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+    color: #333;
+    font-weight: 600;
+    pointer-events: none;
+    z-index: 1;
+    white-space: nowrap;
+  }
+  .date-wrapper .date-display:empty::before {
+    content: "未設定";
+    color: #aaa;
+    font-weight: 400;
+    font-size: 12px;
   }
   .strategy-delete-btn {
     width: 100%;
@@ -3031,19 +3069,19 @@
           </span>
         </div>
         <div class="strategy-summary-row">
-          <span class="strategy-summary-label">アポ件数</span>
+          <span class="strategy-summary-label">アポ件数（当月分）</span>
           <span class="strategy-summary-value"><span id="strategy-apo-total">0</span> アポ</span>
         </div>
         <div class="strategy-summary-row">
-          <span class="strategy-summary-label">契約件数合計</span>
+          <span class="strategy-summary-label">契約件数（当月分）</span>
           <span class="strategy-summary-value"><span id="strategy-contract-total">0</span> 契約</span>
         </div>
         <div class="strategy-summary-row">
-          <span class="strategy-summary-label">契約台数合計</span>
+          <span class="strategy-summary-label">契約台数（当月分）</span>
           <span class="strategy-summary-value"><span id="strategy-units-total">0</span> 台</span>
         </div>
         <div class="strategy-summary-row">
-          <span class="strategy-summary-label">金額合計</span>
+          <span class="strategy-summary-label">金額合計（当月分）</span>
           <span class="strategy-summary-value"><span id="strategy-amount-total">0</span> 円</span>
         </div>
       </div>
@@ -4235,9 +4273,79 @@
     updateSupMonthly();
   }
 
-  // v1.0.0 Phase 4: サポーター用 客数報告25項目の月内累計を更新
-  // 現状は前日引継ぎなしのため、本日入力値をそのまま月内累計表示に反映
-  // （将来、GAS getPreviousData がサポーター対応すれば supMonthlyBase + 本日 にする）
+  // v1.0.0 Phase 4: サポーター用 月内累計の引継ぎベース（月跨ぎリセット対応）
+  const SUP_MONTHLY_BASE_KEY = "sup_monthly_base";
+  let supMonthlyBase = {
+    "shinki-taiou": 0, "shinki-pass": 0, "shinki-shodan": 0,
+    "koegake-taiou": 0, "koegake-pass": 0, "koegake-shodan": 0,
+    "jasho-kakuho": 0, "jasho-pass": 0, "jasho-shodan": 0,
+    "toiawase-kakuho": 0, "toiawase-pass": 0, "toiawase-shodan": 0,
+    "kokyaku-taiou": 0, "kokyaku-pass": 0, "kokyaku-shodan": 0,
+    "zsonota-kakuho": 0, "zsonota-pass": 0, "zsonota-shodan": 0,
+    "pr-katsudou": 0, "ja-suishin": 0, "shuchikai": 0, "tan-sonota": 0,
+    "keiyaku-kensu": 0, "keiyaku-daisu": 0, "keiyaku-kingaku": 0
+  };
+
+  function currentMonthKey() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  // 起動時：保存ベースを復元（同月なら設定、月跨ぎならリセット）
+  function loadSupMonthlyBaseIfCurrentMonth() {
+    try {
+      const json = localStorage.getItem(SUP_MONTHLY_BASE_KEY);
+      if (!json) return;
+      const saved = JSON.parse(json);
+      if (saved && saved.month === currentMonthKey() && saved.data) {
+        Object.keys(supMonthlyBase).forEach(k => {
+          supMonthlyBase[k] = Number(saved.data[k]) || 0;
+        });
+      } else {
+        // 月跨ぎ → クリア
+        localStorage.removeItem(SUP_MONTHLY_BASE_KEY);
+        Object.keys(supMonthlyBase).forEach(k => supMonthlyBase[k] = 0);
+      }
+      // 表示更新
+      if (typeof updateSupMonthly === "function") updateSupMonthly();
+    } catch (e) {
+      console.warn("[サポーター月内累計] 読込エラー:", e);
+    }
+  }
+
+  // 送信成功時：今日の合計（base+today）を新ベースとして保存
+  function saveSupMonthlyBaseAfterSend() {
+    try {
+      const newBase = {};
+      const supPairs = [
+        "shinki-taiou", "shinki-pass", "shinki-shodan",
+        "koegake-taiou", "koegake-pass", "koegake-shodan",
+        "jasho-kakuho", "jasho-pass", "jasho-shodan",
+        "toiawase-kakuho", "toiawase-pass", "toiawase-shodan",
+        "kokyaku-taiou", "kokyaku-pass", "kokyaku-shodan",
+        "zsonota-kakuho", "zsonota-pass", "zsonota-shodan",
+        "pr-katsudou", "ja-suishin", "shuchikai", "tan-sonota",
+        "keiyaku-kensu", "keiyaku-daisu", "keiyaku-kingaku"
+      ];
+      supPairs.forEach(suffix => {
+        const todayEl = document.getElementById(`perf-${suffix}`);
+        const todayVal = todayEl ? parseInt(String(todayEl.value || "0").replace(/[^\d-]/g, "")) || 0 : 0;
+        newBase[suffix] = (supMonthlyBase[suffix] || 0) + todayVal;
+      });
+      localStorage.setItem(SUP_MONTHLY_BASE_KEY, JSON.stringify({
+        month: currentMonthKey(),
+        data: newBase,
+        savedAt: new Date().toISOString()
+      }));
+      // base を更新
+      Object.keys(newBase).forEach(k => supMonthlyBase[k] = newBase[k]);
+    } catch (e) {
+      console.warn("[サポーター月内累計] 保存エラー:", e);
+    }
+  }
+
+  // 月内累計表示を更新（ベース＋本日入力分）
+  // 月跨ぎリセット：base は loadSupMonthlyBaseIfCurrentMonth で月変更時に0に初期化される
   function updateSupMonthly() {
     const supPairs = [
       "shinki-taiou", "shinki-pass", "shinki-shodan",
@@ -4253,13 +4361,15 @@
       const todayEl = document.getElementById(`perf-${suffix}`);
       const monthEl = document.getElementById(`perf-month-${suffix}`);
       if (!todayEl || !monthEl) return;
-      // カンマ付き表記（1,163,000など）もパース可能にする
+      // カンマ付き表記もパース可能に
       const todayVal = parseInt(String(todayEl.value || "0").replace(/[^\d-]/g, "")) || 0;
+      // 月内累計 = base（前日までの累計） + 本日入力分
+      const total = (supMonthlyBase[suffix] || 0) + todayVal;
       // 金額系は3桁区切り表示
       if (suffix === "keiyaku-kingaku") {
-        monthEl.textContent = todayVal.toLocaleString();
+        monthEl.textContent = total.toLocaleString();
       } else {
-        monthEl.textContent = String(todayVal);
+        monthEl.textContent = String(total);
       }
     });
   }
@@ -5706,6 +5816,29 @@
         } catch (e) {
           console.warn("localStorage書き込みエラー:", e);
         }
+        // v1.0.0 Phase 4: 客数報告の月内累計ベースを保存（base + today を新base）
+        // 同時に本日入力欄を0にリセット（次回起動時の二重加算を防ぐ）
+        try {
+          saveSupMonthlyBaseAfterSend();
+          // 本日入力欄をリセット
+          const supTodayIds = [
+            "perf-shinki-taiou","perf-shinki-pass","perf-shinki-shodan",
+            "perf-koegake-taiou","perf-koegake-pass","perf-koegake-shodan",
+            "perf-jasho-kakuho","perf-jasho-pass","perf-jasho-shodan",
+            "perf-toiawase-kakuho","perf-toiawase-pass","perf-toiawase-shodan",
+            "perf-kokyaku-taiou","perf-kokyaku-pass","perf-kokyaku-shodan",
+            "perf-zsonota-kakuho","perf-zsonota-pass","perf-zsonota-shodan",
+            "perf-pr-katsudou","perf-ja-suishin","perf-shuchikai","perf-tan-sonota",
+            "perf-keiyaku-kensu","perf-keiyaku-daisu","perf-keiyaku-kingaku"
+          ];
+          supTodayIds.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = (id === "perf-keiyaku-kingaku") ? "" : "0";
+          });
+          updateSupMonthly();
+        } catch (e) {
+          console.warn("[送信後リセット] エラー:", e);
+        }
         const status = result.mailStatus;
         if (status === "ok") {
           showToast(`✓ ${result.mailCount}件の宛先に送信しました`);
@@ -5801,6 +5934,25 @@
     }
   }
 
+  // v1.0.0 Phase 4: 日付入力欄の短縮表示「6/9」を更新
+  function updateDateDisplay(inputEl) {
+    if (!inputEl) return;
+    const wrapper = inputEl.closest(".date-wrapper");
+    if (!wrapper) return;
+    const display = wrapper.querySelector(".date-display");
+    if (!display) return;
+    if (inputEl.value) {
+      const d = new Date(inputEl.value);
+      if (!isNaN(d)) {
+        display.textContent = `${d.getMonth() + 1}/${d.getDate()}`;
+      } else {
+        display.textContent = "";
+      }
+    } else {
+      display.textContent = "";
+    }
+  }
+
   // 対象月の表示更新
   function updateStrategyMonth() {
     const monthEl = document.getElementById("strategy-month");
@@ -5832,7 +5984,10 @@
           <div class="strategy-field">
             <label>開催日</label>
             <div class="calendar-hint">カレンダーで選択</div>
-            <input type="date" class="strategy-event-date" onchange="updateStrategyCardSummary(this)">
+            <div class="date-wrapper">
+              <input type="date" class="strategy-event-date" onchange="updateStrategyCardSummary(this); updateDateDisplay(this);">
+              <span class="date-display"></span>
+            </div>
           </div>
           <div class="strategy-field">
             <label>JA名</label>
@@ -5869,7 +6024,10 @@
             <div class="strategy-field">
               <label>APO日</label>
               <div class="calendar-hint">カレンダーで選択</div>
-              <input type="date" class="strategy-apo" onchange="updateStrategyCardSummary(this); updateStrategyTotals();">
+              <div class="date-wrapper">
+                <input type="date" class="strategy-apo" onchange="updateStrategyCardSummary(this); updateStrategyTotals(); updateDateDisplay(this);">
+                <span class="date-display"></span>
+              </div>
             </div>
           </div>
         </div>
@@ -5884,7 +6042,10 @@
             <div class="strategy-field">
               <label>契約日</label>
               <div class="calendar-hint">カレンダーで選択</div>
-              <input type="date" class="strategy-contract-date">
+              <div class="date-wrapper">
+                <input type="date" class="strategy-contract-date" onchange="updateStrategyTotals(); updateDateDisplay(this);">
+                <span class="date-display"></span>
+              </div>
             </div>
             <div class="strategy-field">
               <label>契約数</label>
@@ -6109,21 +6270,36 @@
   function updateStrategyTotals() {
     const cards = document.querySelectorAll("#strategy-list .strategy-card");
     const count = cards.length;
+    // 当月判定用（契約日が今月のものだけ集計）
+    const now = new Date();
+    const curY = now.getFullYear();
+    const curM = now.getMonth();
     let apoTotal = 0;
     let contractTotal = 0;
     let unitsTotal = 0;
     let amountTotal = 0;
     cards.forEach(card => {
-      // v1.0.0: APO日が入力されているカードを「アポ件数」としてカウント
-      const apoVal = (card.querySelector(".strategy-apo")?.value || "").trim();
-      if (apoVal) apoTotal++;
-      const n = parseInt(card.querySelector(".strategy-contract-count")?.value || "0", 10);
-      if (!isNaN(n)) contractTotal += n;
-      const u = parseInt(card.querySelector(".strategy-contract-units")?.value || "0", 10);
-      if (!isNaN(u)) unitsTotal += u;
-      const amtStr = (card.querySelector(".strategy-amount")?.value || "0").replace(/[^\d]/g, "");
-      const amt = parseInt(amtStr, 10) || 0;
-      amountTotal += amt;
+      // 契約日が当月かどうかを判定
+      const contractDateStr = (card.querySelector(".strategy-contract-date")?.value || "").trim();
+      let isCurrentMonth = false;
+      if (contractDateStr) {
+        const d = new Date(contractDateStr);
+        if (!isNaN(d) && d.getFullYear() === curY && d.getMonth() === curM) {
+          isCurrentMonth = true;
+        }
+      }
+      // 当月分のみアポ・契約・台数・金額を集計
+      if (isCurrentMonth) {
+        const apoVal = (card.querySelector(".strategy-apo")?.value || "").trim();
+        if (apoVal) apoTotal++;
+        const n = parseInt(card.querySelector(".strategy-contract-count")?.value || "0", 10);
+        if (!isNaN(n)) contractTotal += n;
+        const u = parseInt(card.querySelector(".strategy-contract-units")?.value || "0", 10);
+        if (!isNaN(u)) unitsTotal += u;
+        const amtStr = (card.querySelector(".strategy-amount")?.value || "0").replace(/[^\d]/g, "");
+        const amt = parseInt(amtStr, 10) || 0;
+        amountTotal += amt;
+      }
     });
     const countEl = document.getElementById("strategy-list-count");
     const totalEl = document.getElementById("strategy-total");
@@ -6131,6 +6307,7 @@
     const contractEl = document.getElementById("strategy-contract-total");
     const unitsEl = document.getElementById("strategy-units-total");
     const amountEl = document.getElementById("strategy-amount-total");
+    // 記載件数は全カード合計（純粋にリスト件数）
     if (countEl) countEl.textContent = count;
     if (totalEl) totalEl.textContent = count;
     if (apoEl) apoEl.textContent = apoTotal;
@@ -6152,6 +6329,8 @@
       const anyInput = card.querySelector("input, select");
       if (anyInput) updateStrategyCardSummary(anyInput);
     });
+    // v1.0.0 Phase 4: 戦略カードを localStorage に自動保存（次回開いたとき復元）
+    if (typeof saveStrategyCards === "function") saveStrategyCards();
   }
 
   // 初期データを行に適用（ローカル保存復元時など）
@@ -6165,6 +6344,7 @@
       const el = card.querySelector(sel);
       if (el) el.checked = !!val;
     };
+    setVal(".strategy-event-date", data.eventDate);
     setVal(".strategy-ja", data.ja);
     setVal(".strategy-branch", data.branch);
     setVal(".strategy-customer", data.customer);
@@ -6180,7 +6360,56 @@
     setVal(".strategy-amount", data.amount);
     setVal(".strategy-handler", data.handler);
     setVal(".strategy-memo", data.memo);
+    // v1.0.0 Phase 4: 日付入力欄の短縮表示も更新
+    ["strategy-event-date", "strategy-apo", "strategy-contract-date"].forEach(cls => {
+      const el = card.querySelector(`.${cls}`);
+      if (el) updateDateDisplay(el);
+    });
     updateStrategyCardSummary(card.querySelector(".strategy-ja") || card);
+  }
+
+  // v1.0.0 Phase 4: 戦略カードの永続化（localStorage）
+  const STRATEGY_CARDS_KEY = "sup_strategy_cards";
+
+  function saveStrategyCards() {
+    try {
+      const cards = document.querySelectorAll("#strategy-list .strategy-card");
+      const data = Array.from(cards).map(card => ({
+        eventDate: card.querySelector(".strategy-event-date")?.value || "",
+        ja: card.querySelector(".strategy-ja")?.value || "",
+        branch: card.querySelector(".strategy-branch")?.value || "",
+        customer: card.querySelector(".strategy-customer")?.value || "",
+        source: card.querySelector(".strategy-source")?.value || "",
+        koegake: card.querySelector(".strategy-koegake")?.checked || false,
+        syokai: card.querySelector(".strategy-syokai")?.checked || false,
+        kokyaku: card.querySelector(".strategy-kokyaku")?.checked || false,
+        sokutei: card.querySelector(".strategy-sokutei")?.checked || false,
+        apo: card.querySelector(".strategy-apo")?.value || "",
+        contractDate: card.querySelector(".strategy-contract-date")?.value || "",
+        contractCount: card.querySelector(".strategy-contract-count")?.value || "",
+        contractUnits: card.querySelector(".strategy-contract-units")?.value || "",
+        amount: card.querySelector(".strategy-amount")?.value || "",
+        handler: card.querySelector(".strategy-handler")?.value || "",
+        memo: card.querySelector(".strategy-memo")?.value || ""
+      }));
+      localStorage.setItem(STRATEGY_CARDS_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("[戦略カード] 保存エラー:", e);
+    }
+  }
+
+  function loadStrategyCards() {
+    try {
+      const json = localStorage.getItem(STRATEGY_CARDS_KEY);
+      if (!json) return;
+      const data = JSON.parse(json);
+      if (!Array.isArray(data) || data.length === 0) return;
+      data.forEach(d => addStrategyItem(d));
+      // 復元後にサマリーを更新
+      updateStrategyTotals();
+    } catch (e) {
+      console.warn("[戦略カード] 復元エラー:", e);
+    }
   }
 
   // 全行のデータを収集（送信時・Excel出力用）
@@ -6528,6 +6757,10 @@
     showResetWarningIfNeeded();
     // v1.0.0: メモを同日のみ復元（前日以前はクリア）
     loadMemoIfToday();
+    // v1.0.0 Phase 4: 戦略カードを localStorage から復元
+    loadStrategyCards();
+    // v1.0.0 Phase 4: 客数報告の月内累計を復元
+    loadSupMonthlyBaseIfCurrentMonth();
     // v1.0.0 Phase 4: サポーター用25項目のinputに月内累計自動更新を設定
     const supSuffixes = [
       "shinki-taiou", "shinki-pass", "shinki-shodan",
