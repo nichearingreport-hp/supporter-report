@@ -553,7 +553,9 @@
     grid-template-columns: 1fr 1fr;
     gap: 8px;
   }
-  /* v1.0.0: 戦略報告リストの並列レイアウト */
+  /* v1.0.0: 戦略報告リストの並列レイアウト
+   * 日付欄（input type=date）は他のセルより狭めに設定
+   */
   .strategy-row-3col {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -562,15 +564,26 @@
   }
   .strategy-row-4col {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    /* 1列目（開催日）を狭めに、他3列は均等 */
+    grid-template-columns: minmax(135px, 0.65fr) 1fr 1fr 1fr;
     gap: 12px 14px;
     margin-bottom: 10px;
+  }
+  /* サポ内容用3col：日付は3列目（APO日） */
+  .strategy-row-3col.has-date-last {
+    grid-template-columns: 1fr 1fr minmax(135px, 0.65fr);
+  }
+  /* サポ結果用3col：日付は1列目（契約日） */
+  .strategy-row-3col.has-date-first {
+    grid-template-columns: minmax(135px, 0.65fr) 1fr 1fr;
   }
   @media (max-width: 600px) {
     .strategy-row-4col {
       grid-template-columns: repeat(2, 1fr);
     }
-    .strategy-row-3col {
+    .strategy-row-3col,
+    .strategy-row-3col.has-date-first,
+    .strategy-row-3col.has-date-last {
       grid-template-columns: 1fr;
     }
   }
@@ -5837,7 +5850,7 @@
 
         <div class="strategy-section-block">
           <div class="strategy-section-block-title">サポ内容</div>
-          <div class="strategy-row-3col">
+          <div class="strategy-row-3col has-date-last">
             <div class="strategy-field">
               <label>集客方法</label>
               <select class="strategy-source">
@@ -5867,7 +5880,7 @@
             <label>結果・備考</label>
             <textarea class="strategy-memo" rows="2" placeholder="メモ・備考" oninput="autoResizeMemo(this)"></textarea>
           </div>
-          <div class="strategy-row-3col">
+          <div class="strategy-row-3col has-date-first">
             <div class="strategy-field">
               <label>契約日</label>
               <div class="calendar-hint">カレンダーで選択</div>
