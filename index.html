@@ -458,13 +458,14 @@
   }
   .strategy-field {
     margin: 4px 0;
+    min-width: 0;
   }
   .strategy-field label {
     display: block;
     font-size: 11px;
     font-weight: 700;
     color: var(--navy);
-    margin-bottom: 2px;
+    margin-bottom: 4px;
   }
   .strategy-field input[type="text"],
   .strategy-field input[type="date"],
@@ -504,10 +505,14 @@
     font-weight: 700;
     color: var(--fuchsia);
     text-align: right;
-    margin-bottom: 2px;
+    margin-bottom: 4px;
+    margin-top: 2px;
     line-height: 1.2;
     padding-right: 2px;
     letter-spacing: 0.02em;
+    display: block;
+    white-space: nowrap;
+    overflow: visible;
   }
   .calendar-hint::before {
     content: "📅 ";
@@ -552,13 +557,14 @@
   .strategy-row-3col {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 8px;
+    gap: 12px 14px;
+    margin-bottom: 10px;
   }
   .strategy-row-4col {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
-    margin-bottom: 8px;
+    gap: 12px 14px;
+    margin-bottom: 10px;
   }
   @media (max-width: 600px) {
     .strategy-row-4col {
