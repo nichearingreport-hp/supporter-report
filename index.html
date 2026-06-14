@@ -2600,7 +2600,7 @@
         </select>
       </div>
       <!-- 内部値保持用（hidden）-->
-      <input type="hidden" id="divisionSelect" value="ヒアリング事業部">
+      <input type="hidden" id="divisionSelect" value="サポーター">
     </div>
     <div class="header-row2">
       <input type="date" id="reportDate" class="report-date-input">
@@ -3396,7 +3396,7 @@
   // ==========================================================
   //  アプリ バージョン（更新時はここの数字だけ変える）
   // ==========================================================
-  const APP_VERSION = "SUPSDR_sup1.0.0";
+  const APP_VERSION = "SUPSDR_sup1.0.2";
 
   // ==========================================================
   //  ログインパスワード（1日1回・同日2回目以降は自動通過）
@@ -4783,7 +4783,53 @@
   }
 
   // ===== 前日データを画面に反映 =====
+
+  // v1.0.1: サポーター用入力を全リセット
+  //  - 報告者切替時に前のユーザーのデータが画面・端末内保存に残る混在を防止
+  //  - 例: 進藤さんで送信→上村さんに切替→進藤さんの内容が残ったままになる事故の対策
+  function resetSupporterInputs() {
+    try {
+      // 客数報告25項目の本日入力欄を0（金額は空欄）に
+      const supTodayIds = [
+        "perf-shinki-taiou","perf-shinki-pass","perf-shinki-shodan",
+        "perf-koegake-taiou","perf-koegake-pass","perf-koegake-shodan",
+        "perf-jasho-kakuho","perf-jasho-pass","perf-jasho-shodan",
+        "perf-toiawase-kakuho","perf-toiawase-pass","perf-toiawase-shodan",
+        "perf-kokyaku-taiou","perf-kokyaku-pass","perf-kokyaku-shodan",
+        "perf-zsonota-kakuho","perf-zsonota-pass","perf-zsonota-shodan",
+        "perf-pr-katsudou","perf-ja-suishin","perf-shuchikai","perf-tan-sonota",
+        "perf-keiyaku-kensu","perf-keiyaku-daisu","perf-keiyaku-kingaku"
+      ];
+      supTodayIds.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = (id === "perf-keiyaku-kingaku") ? "" : "0";
+      });
+      // 月内累計ベースを0に
+      Object.keys(supMonthlyBase).forEach(k => supMonthlyBase[k] = 0);
+      if (typeof updateSupMonthly === "function") updateSupMonthly();
+      // 戦略カードをクリア
+      const sl = document.getElementById("strategy-list");
+      if (sl) sl.innerHTML = "";
+      // 今月の相談会をクリア
+      const mp = document.getElementById("meet-pref-blocks");
+      if (mp) mp.innerHTML = "";
+      const ms = document.getElementById("meet-seikyo-list");
+      if (ms) ms.innerHTML = "";
+      // 端末内保存（前のユーザーの残骸）をクリア
+      [SUP_MONTHLY_BASE_KEY, STRATEGY_CARDS_KEY, MEET_DATA_KEY, EXCEL_ARCHIVE_KEY].forEach(k => {
+        try { localStorage.removeItem(k); } catch (e) {}
+      });
+      if (typeof updateStrategyTotals === "function") updateStrategyTotals();
+      if (typeof updateAllCounts === "function") updateAllCounts();
+    } catch (e) {
+      console.warn("[サポーターリセット] エラー:", e);
+    }
+  }
+
   function applyPreviousData(prev) {
+    // v1.0.1: 報告者切替時はまずサポーター用入力をまっさらに（前ユーザーのデータ混在防止）
+    // この後、選択された報告者のデータ（GASから取得）だけが復元される
+    resetSupporterInputs();
     if (!prev) {
       // 新規社員：すべて0、空に
       resetAllInputs();
@@ -5266,6 +5312,40 @@
       } catch (e) {}
     }
 
+    // v1.0.2: 社員マスタから「事業部＝サポーター」の人を取得してリスト構築
+    //  - 事業部Aの新設に対応。固定リスト(SUP_FALLBACK_USERS)はGAS失敗時の保険として温存
+    //  - 絞り込みは GAS getUserList が area＋division="サポーター"＋表示フラグTRUE で行う
+    async function fillUserSelectFromMaster(area) {
+      const userSel = document.getElementById("userSelect");
+      const division = (document.getElementById("divisionSelect") || {}).value || "サポーター";
+      try {
+        const result = await gasGet({ action: "init", area: area, division: division });
+        if (result && result.success && Array.isArray(result.users)) {
+          const names = result.users.map(u => u.name).filter(n => n);
+          if (names.length > 0) {
+            userSel.innerHTML = '<option value="">選択してください</option>';
+            names.forEach(name => {
+              const opt = document.createElement("option");
+              opt.value = name;
+              opt.textContent = name;
+              userSel.appendChild(opt);
+            });
+            // 前回選択を復元
+            try {
+              const lastUser = localStorage.getItem("lastUser");
+              if (lastUser && names.includes(lastUser)) userSel.value = lastUser;
+            } catch (e) {}
+            return true;
+          }
+        }
+      } catch (e) {
+        console.warn("[サポーター] マスタ取得失敗、フォールバック使用:", e);
+      }
+      // GAS失敗 or 該当者0 → フォールバック（予備の固定リスト）
+      fillUserSelectFromFallback(area);
+      return false;
+    }
+
     async function reloadUserList() {
       const area = (document.getElementById("areaSelect").value || "").trim();
       const userSel = document.getElementById("userSelect");
@@ -5273,8 +5353,8 @@
         userSel.innerHTML = '<option value="">先にエリアを選択</option>';
         return;
       }
-      // v1.0.0: サポーター用は社員リストをハードコードから直接使用（GAS未対応）
-      fillUserSelectFromFallback(area);
+      // v1.0.2: 社員マスタ（事業部＝サポーター）から取得。失敗時のみ固定リスト
+      await fillUserSelectFromMaster(area);
     }
 
     // v1.0.0: エリア変更時に社員リストを再ロード
@@ -5305,9 +5385,25 @@
       console.log("[起動] GAS応答:", result);
 
       if (result && result.success) {
-        // v1.0.0: サポーター用は社員リストをハードコードから取得
-        // （GASの社員マスタには「サポーター」区別がなく、正社員営業リストが返るため）
-        fillUserSelectFromFallback(areaForInit);
+        // v1.0.2: サポーター社員を社員マスタ（事業部＝サポーター）から取得
+        //  initのresultにusersが入っているので、それを使ってリスト構築
+        if (Array.isArray(result.users) && result.users.length > 0) {
+          const names = result.users.map(u => u.name).filter(n => n);
+          sel.innerHTML = '<option value="">選択してください</option>';
+          names.forEach(name => {
+            const opt = document.createElement("option");
+            opt.value = name;
+            opt.textContent = name;
+            sel.appendChild(opt);
+          });
+          try {
+            const lastUser = localStorage.getItem("lastUser");
+            if (lastUser && names.includes(lastUser)) sel.value = lastUser;
+          } catch (e) {}
+        } else {
+          // マスタに該当者がいない場合は予備の固定リスト
+          fillUserSelectFromFallback(areaForInit);
+        }
         const usersAfterFallback = Array.from(sel.options).filter(o => o.value).map(o => ({ name: o.value }));
 
         // 報告者変更時のリスナー（選択時に端末に保存）
@@ -6973,12 +7069,11 @@
     showResetWarningIfNeeded();
     // v1.0.0: メモを同日のみ復元（前日以前はクリア）
     loadMemoIfToday();
-    // v1.0.0 Phase 4: 戦略カードを localStorage から復元
-    loadStrategyCards();
-    // v1.0.0 Phase 4: 客数報告の月内累計を復元
-    loadSupMonthlyBaseIfCurrentMonth();
-    // v1.0.0 Phase 4: 「今月の相談会」を localStorage から復元（月跨ぎ時はクリア）
-    loadMeetDataIfCurrentMonth();
+    // v1.0.1: 端末内保存（localStorage）からの起動時復元は廃止
+    // 理由: 報告者を選択する前に「前にこの端末を使った人」のデータが復元され、
+    //       別の報告者に切り替えてもそのまま残る混在事故が起きるため。
+    //       データの復元は報告者選択時にGAS（スプレッドシート）から行う方式に一本化。
+    //       （loadStrategyCards / loadSupMonthlyBaseIfCurrentMonth / loadMeetDataIfCurrentMonth は呼ばない）
     // v1.0.0 Phase 4: サポーター用25項目のinputに月内累計自動更新を設定
     const supSuffixes = [
       "shinki-taiou", "shinki-pass", "shinki-shodan",
